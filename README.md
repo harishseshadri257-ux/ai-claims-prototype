@@ -30,34 +30,34 @@ The agent can view submitted photos and upload additional photos before triggeri
 A "Run Damage Labeller" CTA transitions the claim to ASSESSING with a simulated 2-second loading state.
 
 **Screen 3 — ASSESSING**
-The damage assessment workspace. Shows the damage photo with bounding box overlays colour-coded by severity. 
-Clicking a box highlights the corresponding row in the damage labels table below. 
-The table lists each detected part with severity badge, confidence score, bounding box ID, and status. 
-Labels with confidence below 80% are flagged with a warning and require explicit acknowledgement before approval. 
-Each label can be approved, adjusted (with severity change and a required Agent Notes field), or overridden (with a required Override Reason field). 
-Trace panels expand per row to show model name, dataset, and agent notes. 
-An AI disclaimer banner sits at the top of the section. Once all labels are resolved, a "Run Cost Estimator" CTA advances the claim.
+The damage assessment workspace. Shows the damage photo with bounding box overlays colour-coded by severity.   
+Clicking a box highlights the corresponding row in the damage labels table below.  
+The table lists each detected part with severity badge, confidence score, bounding box ID, and status.  
+Labels with confidence below 80% are flagged with a warning and require explicit acknowledgement before approval.  
+Each label can be approved, adjusted (with severity change and a required Agent Notes field), or overridden (with a required Override Reason field).  
+Trace panels expand per row to show model name, dataset, and agent notes.  
+An AI disclaimer banner sits at the top of the section. Once all labels are resolved, a "Run Cost Estimator" CTA advances the claim. 
 
 **Screen 4 — ESTIMATE_GENERATED**
-Shows two sections. The first is a read-only resolved damage labels summary with the Agent Notes column surfaced for any adjusted or overridden labels. 
-The second is the itemised cost estimate with a parts and labour sub-row per line item, source attribution badges per row (expandable to show full source detail), status badges, and approve/adjust actions per item. 
-An AI disclaimer banner sits at the top of the cost section. 
-A three-line total (parts subtotal, labour subtotal, grand total) sits at the bottom. 
-Once all cost items are resolved, a "Preview Estimate" CTA advances the claim.
+Shows two sections. The first is a read-only resolved damage labels summary with the Agent Notes column surfaced for any adjusted or overridden labels.  
+The second is the itemised cost estimate with a parts and labour sub-row per line item, source attribution badges per row (expandable to show full source detail), status badges, and approve/adjust actions per item.  
+An AI disclaimer banner sits at the top of the cost section.  
+A three-line total (parts subtotal, labour subtotal, grand total) sits at the bottom.  
+Once all cost items are resolved, a "Preview Estimate" CTA advances the claim. 
 
 **Screen 5 — PENDING_APPROVAL**
 A read-only estimate preview showing the full damage assessment and cost estimate for agent sign-off. The agent submits the claim for adjuster review via a single CTA. On submission, the view transitions to a confirmation state with a link back to the queue.
 
 **Screen 6 — Senior Adjuster Review**
-A separate dashboard view accessible from the claims queue. 
-Shows a condensed claim summary, the full damage assessment summary (with Agent Notes column and expandable trace panels), and the full cost estimate with parts/labour breakdown and expandable source badges. 
-The adjuster approves or rejects via two large CTAs. Approval requires a confirmation modal. 
-Rejection requires selecting a structured reason from a dropdown and optionally adding notes.
+A separate dashboard view accessible from the claims queue.  
+Shows a condensed claim summary, the full damage assessment summary (with Agent Notes column and expandable trace panels), and the full cost estimate with parts/labour breakdown and expandable source badges.  
+The adjuster approves or rejects via two large CTAs. Approval requires a confirmation modal.  
+Rejection requires selecting a structured reason from a dropdown and optionally adding notes.  
 
 **Screen 7 — Post-Approval**
-End-state screens for both outcomes. 
-On approval: a success banner, a pre-drafted customer communication (editable-ready), a list of three authorised repair shops, and a "Send Communication to Customer" CTA with a toast confirmation. 
-On rejection: a summary card showing the rejection reason and notes, with a link back to the queue.
+End-state screens for both outcomes.  
+On approval: a success banner, a pre-drafted customer communication (editable-ready), a list of three authorised repair shops, and a "Send Communication to Customer" CTA with a toast confirmation.  
+On rejection: a summary card showing the rejection reason and notes, with a link back to the queue.  
 
 ---
 
