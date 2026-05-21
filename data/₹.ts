@@ -10,7 +10,7 @@ export type DamageLabel = {
   id: string;
   part: string;
   severity: 'Minor' | 'Moderate' | 'Severe';
-  confidence: number;
+  confidence: number; // 0–100
   status: 'PENDING' | 'APPROVED' | 'ADJUSTED' | 'OVERRIDDEN';
   boundingBox: { x: number; y: number; width: number; height: number };
   traceData: { boundingBoxId: string; model: string; dataset: string };
@@ -73,7 +73,7 @@ function makeDamageLabels(status: DamageLabel['status']): DamageLabel[] {
       confidence: 76,
       status,
       boundingBox: { x: 30, y: 66, width: 20, height: 16 },
-      traceData: { boundingBoxId: 'BB-003', model: 'DamageNet-v2', dataset: 'Sedan Front Impact Dataset v2' },
+      traceData: { boundingBoxId: 'BB-003', model: 'mageNet-v2', dataset: 'Sedan Front Impact Dataset v2' },
     },
   ];
 }
