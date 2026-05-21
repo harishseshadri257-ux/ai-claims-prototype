@@ -102,4 +102,4 @@ CLAUDE.md                   Claude Code context file
 
 ## Assignment Context
 
-Built as part of a PM take-home assignment for an AI Product Manager role. The PRD is available in `/docs`. The prototype demonstrates the core claims agent workflow — damage assessment and cost estimation — with mocked AI responses. The full product vision including intake agent, fraud detection, and continuous improvement layer is documented in the PRD.
+Built as part of a PM take-home assignment for an AI Product Manager role. The PRD is available in `/docs`. The prototype demonstrates the core claims agent workflow — damage assessment and cost estimation — with mocked AI responses. The full product vision including intake agent, fraud detection, and continuous improvement layer is documented in the PRD. Complete product thinking, including detailed solutions, AI decisions and ideas exploration present in the `/docs` too. 
