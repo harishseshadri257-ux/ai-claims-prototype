@@ -92,14 +92,17 @@ function ClaimDetail({ seed }: { seed: Claim }) {
   const [labelActionId, setLabelActionId] = useState<string | null>(null);
   const [labelActionType, setLabelActionType] = useState<'adjusting' | 'overriding' | 'acknowledging' | null>(null);
   const [adjustSeverity, setAdjustSeverity] = useState<DamageLabel['severity']>('Moderate');
-  const [overrideReason, setOverrideReason] = useState('');
+  const [actionNotes, setActionNotes] = useState('');
 
   // Cost table interaction
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
+  const [expandedLabourSources, setExpandedLabourSources] = useState<Set<string>>(new Set());
   const [costAdjustId, setCostAdjustId] = useState<string | null>(null);
   const [adjustCost, setAdjustCost] = useState('');
 
   const [submitted, setSubmitted] = useState(false);
+  const [commSent, setCommSent] = useState(false);
+  const [showToast, setShowToast] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
@@ -142,6 +145,13 @@ function ClaimDetail({ seed }: { seed: Claim }) {
       return n;
     });
 
+  const toggleLabourSource = (id: string) =>
+    setExpandedLabourSources(p => {
+      const n = new Set(p);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+
   const clickOverlay = (id: string) => {
     setSelectedLabelId(p => (p === id ? null : id));
     rowRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -150,15 +160,24 @@ function ClaimDetail({ seed }: { seed: Claim }) {
   const clearLabelAction = () => {
     setLabelActionId(null);
     setLabelActionType(null);
+    setActionNotes('');
   };
 
   const allLabelsResolved = claim.damageLabels.every(l => l.status !== 'PENDING');
   const resolvedLabels = claim.damageLabels.filter(l => l.status !== 'PENDING').length;
   const allCostResolved = claim.costLineItems.every(i => i.status !== 'PENDING');
   const resolvedCosts = claim.costLineItems.filter(i => i.status !== 'PENDING').length;
-  const total = claim.costLineItems.reduce((s, i) => s + i.cost, 0);
+  const partsTotal = claim.costLineItems.reduce((s, i) => s + i.cost, 0);
+  const labourTotal = claim.costLineItems.reduce((s, i) => s + i.labourHours * i.labourRate, 0);
+  const total = partsTotal + labourTotal;
 
   const stepIdx = STEP_STATES.indexOf(claim.state === 'REJECTED' ? 'APPROVED' : claim.state);
+
+  function sendCommunication() {
+    setCommSent(true);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  }
 
   // ─── Shared sub-components ────────────────────────────────────────────────────
 
@@ -190,6 +209,34 @@ function ClaimDetail({ seed }: { seed: Claim }) {
       </dl>
     </section>
   );
+
+  const VerificationCard = () => {
+    const checks = [
+      { label: 'Policy Active', ok: claim.policyStatus === 'ACTIVE' },
+      { label: 'Driver License Verified', ok: claim.driverLicenseVerified },
+      { label: 'Police Report Filed', ok: claim.policeReport },
+    ];
+    return (
+      <section className="bg-white border border-zinc-200 rounded-lg px-6 py-4">
+        <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Verification</h2>
+        <div className="flex flex-wrap gap-2.5">
+          {checks.map(({ label, ok }) => (
+            <div
+              key={label}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
+                ok
+                  ? 'bg-green-50 text-green-700 border-green-200'
+                  : 'bg-red-50 text-red-700 border-red-200'
+              }`}
+            >
+              <span className="font-bold">{ok ? '✓' : '✗'}</span>
+              {label}
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  };
 
   // ─── Render ───────────────────────────────────────────────────────────────────
 
@@ -242,6 +289,10 @@ function ClaimDetail({ seed }: { seed: Claim }) {
           </div>
         </div>
 
+        {/* Persistent claim summary */}
+        <ClaimSummaryCard />
+        <VerificationCard />
+
         {/* Loading state */}
         {loading && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg px-5 py-4 flex items-center gap-3">
@@ -253,8 +304,6 @@ function ClaimDetail({ seed }: { seed: Claim }) {
         {/* ── VIEW 1: NEW ─────────────────────────────────────────────────────── */}
         {!loading && claim.state === 'NEW' && (
           <div className="space-y-5">
-            <ClaimSummaryCard />
-
             {/* Photos */}
             <section className="bg-white border border-zinc-200 rounded-lg p-6">
               <h2 className="text-sm font-semibold text-zinc-900 mb-4">Submitted Photos</h2>
@@ -355,8 +404,12 @@ function ClaimDetail({ seed }: { seed: Claim }) {
 
             {/* Damage Labels table */}
             <section className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
-              <div className="px-6 py-4 border-b border-zinc-100">
+              <div className="px-6 py-4 border-b border-zinc-100 space-y-2.5">
                 <h2 className="text-sm font-semibold text-zinc-900">Damage Labels</h2>
+                <div className="flex items-start gap-2 bg-yellow-50 border border-yellow-200 rounded-md px-3 py-2 text-xs text-yellow-800">
+                  <span className="shrink-0 font-bold">⚠</span>
+                  <span>AI-generated output. All labels must be reviewed and approved before proceeding.</span>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -433,6 +486,7 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                                       setLabelActionId(label.id);
                                       setLabelActionType('adjusting');
                                       setAdjustSeverity(label.severity);
+                                      setActionNotes('');
                                     }}
                                     className="text-xs bg-zinc-50 border border-zinc-300 text-zinc-600 rounded px-2 py-1 hover:bg-zinc-100"
                                   >
@@ -442,7 +496,7 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                                     onClick={() => {
                                       setLabelActionId(label.id);
                                       setLabelActionType('overriding');
-                                      setOverrideReason('');
+                                      setActionNotes('');
                                     }}
                                     className="text-xs bg-red-50 border border-red-200 text-red-600 rounded px-2 py-1 hover:bg-red-100"
                                   >
@@ -481,6 +535,12 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                                     <span className="font-medium text-zinc-700">Dataset:</span>{' '}
                                     {label.traceData.dataset}
                                   </p>
+                                  {label.agentNotes && (
+                                    <p>
+                                      <span className="font-medium text-zinc-700">Agent Notes:</span>{' '}
+                                      {label.agentNotes}
+                                    </p>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -490,32 +550,46 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                           {isActing && labelActionType === 'adjusting' && (
                             <tr className="border-b border-zinc-100 bg-blue-50">
                               <td colSpan={7} className="px-6 py-3">
-                                <div className="flex items-center gap-3 flex-wrap">
-                                  <span className="text-xs font-medium text-zinc-700">Adjust severity:</span>
-                                  <select
-                                    value={adjustSeverity}
-                                    onChange={e => setAdjustSeverity(e.target.value as DamageLabel['severity'])}
-                                    className="text-xs border border-zinc-300 rounded px-2 py-1 bg-white"
-                                  >
-                                    <option>Minor</option>
-                                    <option>Moderate</option>
-                                    <option>Severe</option>
-                                  </select>
-                                  <button
-                                    onClick={() => {
-                                      patchLabel(label.id, { status: 'ADJUSTED', severity: adjustSeverity });
-                                      clearLabelAction();
-                                    }}
-                                    className="text-xs bg-blue-600 text-white rounded px-2.5 py-1 hover:bg-blue-700"
-                                  >
-                                    Confirm
-                                  </button>
-                                  <button
-                                    onClick={clearLabelAction}
-                                    className="text-xs text-zinc-500 hover:text-zinc-800"
-                                  >
-                                    Cancel
-                                  </button>
+                                <div className="space-y-2.5 max-w-md">
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xs font-medium text-zinc-700 shrink-0">Severity:</span>
+                                    <select
+                                      value={adjustSeverity}
+                                      onChange={e => setAdjustSeverity(e.target.value as DamageLabel['severity'])}
+                                      className="text-xs text-zinc-900 border border-zinc-300 rounded px-2 py-1 bg-white"
+                                    >
+                                      <option>Minor</option>
+                                      <option>Moderate</option>
+                                      <option>Severe</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-zinc-700 mb-1">
+                                      Agent Notes <span className="text-red-500">*</span>
+                                    </label>
+                                    <textarea
+                                      value={actionNotes}
+                                      onChange={e => setActionNotes(e.target.value)}
+                                      rows={2}
+                                      placeholder="Describe why you are adjusting this label..."
+                                      className="w-full text-xs text-zinc-900 border border-zinc-300 rounded px-2 py-1.5 bg-white resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => {
+                                        patchLabel(label.id, { status: 'ADJUSTED', severity: adjustSeverity, agentNotes: actionNotes.trim() });
+                                        clearLabelAction();
+                                      }}
+                                      disabled={!actionNotes.trim()}
+                                      className="text-xs bg-blue-600 text-white rounded px-2.5 py-1 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                      Confirm
+                                    </button>
+                                    <button onClick={clearLabelAction} className="text-xs text-zinc-500 hover:text-zinc-800">
+                                      Cancel
+                                    </button>
+                                  </div>
                                 </div>
                               </td>
                             </tr>
@@ -525,31 +599,34 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                           {isActing && labelActionType === 'overriding' && (
                             <tr className="border-b border-zinc-100 bg-red-50">
                               <td colSpan={7} className="px-6 py-3">
-                                <div className="flex items-center gap-3 flex-wrap">
-                                  <span className="text-xs font-medium text-zinc-700">Override reason:</span>
-                                  <input
-                                    type="text"
-                                    value={overrideReason}
-                                    onChange={e => setOverrideReason(e.target.value)}
-                                    placeholder="Enter reason..."
-                                    className="text-xs border border-zinc-300 rounded px-2 py-1 w-56"
-                                  />
-                                  <button
-                                    onClick={() => {
-                                      patchLabel(label.id, { status: 'OVERRIDDEN' });
-                                      clearLabelAction();
-                                      setOverrideReason('');
-                                    }}
-                                    className="text-xs bg-red-600 text-white rounded px-2.5 py-1 hover:bg-red-700"
-                                  >
-                                    Confirm Override
-                                  </button>
-                                  <button
-                                    onClick={clearLabelAction}
-                                    className="text-xs text-zinc-500 hover:text-zinc-800"
-                                  >
-                                    Cancel
-                                  </button>
+                                <div className="space-y-2.5 max-w-md">
+                                  <div>
+                                    <label className="block text-xs font-medium text-zinc-700 mb-1">
+                                      Override Reason <span className="text-red-500">*</span>
+                                    </label>
+                                    <textarea
+                                      value={actionNotes}
+                                      onChange={e => setActionNotes(e.target.value)}
+                                      rows={2}
+                                      placeholder="Describe why you are overriding this label..."
+                                      className="w-full text-xs border border-zinc-300 rounded px-2 py-1.5 bg-white resize-none focus:outline-none focus:ring-1 focus:ring-red-400"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => {
+                                        patchLabel(label.id, { status: 'OVERRIDDEN', agentNotes: actionNotes.trim() });
+                                        clearLabelAction();
+                                      }}
+                                      disabled={!actionNotes.trim()}
+                                      className="text-xs bg-red-600 text-white rounded px-2.5 py-1 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                      Confirm Override
+                                    </button>
+                                    <button onClick={clearLabelAction} className="text-xs text-zinc-500 hover:text-zinc-800">
+                                      Cancel
+                                    </button>
+                                  </div>
                                 </div>
                               </td>
                             </tr>
@@ -621,35 +698,88 @@ function ClaimDetail({ seed }: { seed: Claim }) {
         {!loading && claim.state === 'ESTIMATE_GENERATED' && (
           <div className="space-y-5">
             {/* Resolved labels summary */}
-            <section className="bg-white border border-zinc-200 rounded-lg p-6">
-              <h2 className="text-sm font-semibold text-zinc-900 mb-3">Damage Labels — Resolved</h2>
-              <div className="space-y-2">
-                {claim.damageLabels.map(label => (
-                  <div key={label.id} className="flex items-center gap-3 text-sm flex-wrap">
-                    <span className="font-medium text-zinc-900 w-40 shrink-0">{label.part}</span>
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${SEVERITY_BADGE[label.severity]}`}>
-                      {label.severity}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${LABEL_STATUS_BADGE[label.status]}`}>
-                      {label.status}
-                    </span>
-                    <span className="text-xs text-zinc-400">{label.confidence}% confidence</span>
-                  </div>
-                ))}
+            <section className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-zinc-100">
+                <h2 className="text-sm font-semibold text-zinc-900">Damage Labels — Resolved</h2>
               </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-100 bg-zinc-50 text-left">
+                    <th className="px-6 py-2.5 text-xs font-medium text-zinc-500">Part</th>
+                    <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Severity</th>
+                    <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Confidence</th>
+                    <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Status</th>
+                    <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Agent Notes</th>
+                    <th className="px-3 py-2.5 w-8"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {claim.damageLabels.map(label => {
+                    const traceOpen = expandedTraces.has(label.id);
+                    return (
+                      <Fragment key={label.id}>
+                        <tr className="border-b border-zinc-100">
+                          <td className="px-6 py-3 font-medium text-zinc-900">{label.part}</td>
+                          <td className="px-3 py-3">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${SEVERITY_BADGE[label.severity]}`}>
+                              {label.severity}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-zinc-600">{label.confidence}%</td>
+                          <td className="px-3 py-3">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${LABEL_STATUS_BADGE[label.status]}`}>
+                              {label.status}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-xs text-zinc-500 max-w-[180px]">
+                            {label.agentNotes ?? '—'}
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <button
+                              onClick={() => toggleTrace(label.id)}
+                              className={`text-zinc-400 hover:text-zinc-700 text-sm inline-block transition-transform duration-150 ${traceOpen ? 'rotate-180' : ''}`}
+                              title="View trace"
+                            >
+                              ▾
+                            </button>
+                          </td>
+                        </tr>
+                        {traceOpen && (
+                          <tr className="border-b border-zinc-100 bg-zinc-50">
+                            <td colSpan={6} className="px-6 py-3">
+                              <div className="text-xs text-zinc-600 space-y-1">
+                                <p><span className="font-medium text-zinc-700">Bounding Box ID:</span> {label.traceData.boundingBoxId}</p>
+                                <p><span className="font-medium text-zinc-700">Model:</span> {label.traceData.model}</p>
+                                <p><span className="font-medium text-zinc-700">Dataset:</span> {label.traceData.dataset}</p>
+                                {label.agentNotes && (
+                                  <p><span className="font-medium text-zinc-700">Agent Notes:</span> {label.agentNotes}</p>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
             </section>
 
             {/* Cost estimate table */}
             <section className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
-              <div className="px-6 py-4 border-b border-zinc-100">
+              <div className="px-6 py-4 border-b border-zinc-100 space-y-2.5">
                 <h2 className="text-sm font-semibold text-zinc-900">Cost Estimate</h2>
+                <div className="flex items-start gap-2 bg-yellow-50 border border-yellow-200 rounded-md px-3 py-2 text-xs text-yellow-800">
+                  <span className="shrink-0 font-bold">⚠</span>
+                  <span>AI-generated cost estimate. Review all line items and sources before approving.</span>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-zinc-100 text-left bg-zinc-50">
                       <th className="px-6 py-2.5 text-xs font-medium text-zinc-500">Part</th>
-                      <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Description</th>
+                      <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Description / Rate</th>
                       <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Cost</th>
                       <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Source</th>
                       <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Status</th>
@@ -658,46 +788,48 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                   </thead>
                   <tbody>
                     {claim.costLineItems.map(item => {
-                      const srcOpen = expandedSources.has(item.id);
+                      const partsOpen = expandedSources.has(item.id);
+                      const labourOpen = expandedLabourSources.has(item.id);
                       const isAdjusting = costAdjustId === item.id;
+                      const labourCost = item.labourHours * item.labourRate;
 
                       return (
                         <Fragment key={item.id}>
+                          {/* Parts row */}
                           <tr className="border-b border-zinc-100 hover:bg-zinc-50">
-                            <td className="px-6 py-3 font-medium text-zinc-900 whitespace-nowrap">{item.part}</td>
-                            <td className="px-3 py-3 text-zinc-600">{item.description}</td>
-                            <td className="px-3 py-3 font-mono text-zinc-900 whitespace-nowrap">{fmt(item.cost)}</td>
-                            <td className="px-3 py-3 whitespace-nowrap">
+                            <td className="px-6 pt-3 pb-1 font-medium text-zinc-900 whitespace-nowrap align-top" rowSpan={2}>
+                              {item.part}
+                            </td>
+                            <td className="px-3 pt-3 pb-1 text-zinc-600">
+                              <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide mb-0.5">Parts</div>
+                              {item.description}
+                            </td>
+                            <td className="px-3 pt-3 pb-1 font-mono text-zinc-900 whitespace-nowrap">{fmt(item.cost)}</td>
+                            <td className="px-3 pt-3 pb-1 whitespace-nowrap">
                               <button
                                 onClick={() => toggleSource(item.id)}
                                 className="text-xs bg-zinc-100 text-zinc-600 rounded px-2 py-0.5 hover:bg-zinc-200 inline-flex items-center gap-1"
                               >
                                 {item.source}
-                                <span className={`inline-block transition-transform duration-150 ${srcOpen ? 'rotate-180' : ''}`}>▾</span>
+                                <span className={`inline-block transition-transform duration-150 ${partsOpen ? 'rotate-180' : ''}`}>▾</span>
                               </button>
                             </td>
-                            <td className="px-3 py-3 whitespace-nowrap">
+                            <td className="px-3 pt-3 pb-1 whitespace-nowrap">
                               <span className={`px-2 py-0.5 rounded text-xs font-medium ${COST_STATUS_BADGE[item.status]}`}>
                                 {item.status}
                               </span>
                             </td>
-                            <td className="px-3 py-3">
+                            <td className="px-3 pt-3 pb-1">
                               {item.status === 'PENDING' ? (
                                 <div className="flex items-center gap-1.5">
                                   <button
-                                    onClick={() => {
-                                      patchCost(item.id, { status: 'APPROVED' });
-                                      setCostAdjustId(null);
-                                    }}
+                                    onClick={() => { patchCost(item.id, { status: 'APPROVED' }); setCostAdjustId(null); }}
                                     className="text-xs bg-green-50 border border-green-300 text-green-700 rounded px-2 py-1 hover:bg-green-100"
                                   >
                                     Approve
                                   </button>
                                   <button
-                                    onClick={() => {
-                                      setCostAdjustId(item.id);
-                                      setAdjustCost(String(item.cost));
-                                    }}
+                                    onClick={() => { setCostAdjustId(item.id); setAdjustCost(String(item.cost)); }}
                                     className="text-xs bg-zinc-50 border border-zinc-300 text-zinc-600 rounded px-2 py-1 hover:bg-zinc-100"
                                   >
                                     Adjust
@@ -709,8 +841,28 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                             </td>
                           </tr>
 
-                          {/* Source detail panel */}
-                          {srcOpen && (
+                          {/* Labour row */}
+                          <tr className="border-b border-zinc-100 hover:bg-zinc-50">
+                            <td className="px-3 pb-3 pt-1 text-zinc-600">
+                              <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide mb-0.5">Labour</div>
+                              {item.labourHours} hrs @ {fmt(item.labourRate)}/hr
+                            </td>
+                            <td className="px-3 pb-3 pt-1 font-mono text-zinc-700 whitespace-nowrap">{fmt(labourCost)}</td>
+                            <td className="px-3 pb-3 pt-1 whitespace-nowrap">
+                              <button
+                                onClick={() => toggleLabourSource(item.id)}
+                                className="text-xs bg-zinc-100 text-zinc-600 rounded px-2 py-0.5 hover:bg-zinc-200 inline-flex items-center gap-1"
+                              >
+                                {item.labourSource}
+                                <span className={`inline-block transition-transform duration-150 ${labourOpen ? 'rotate-180' : ''}`}>▾</span>
+                              </button>
+                            </td>
+                            <td className="px-3 pb-3 pt-1"><span className="text-xs text-zinc-400">—</span></td>
+                            <td className="px-3 pb-3 pt-1"><span className="text-xs text-zinc-400">—</span></td>
+                          </tr>
+
+                          {/* Parts source detail */}
+                          {partsOpen && (
                             <tr className="border-b border-zinc-100 bg-zinc-50">
                               <td colSpan={6} className="px-6 py-2.5">
                                 <p className="text-xs text-zinc-600">{item.sourceDetail}</p>
@@ -718,18 +870,27 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                             </tr>
                           )}
 
-                          {/* Adjust cost inline panel */}
+                          {/* Labour source detail */}
+                          {labourOpen && (
+                            <tr className="border-b border-zinc-100 bg-zinc-50">
+                              <td colSpan={6} className="px-6 py-2.5">
+                                <p className="text-xs text-zinc-600">{item.labourSourceDetail}</p>
+                              </td>
+                            </tr>
+                          )}
+
+                          {/* Adjust parts cost panel */}
                           {isAdjusting && (
                             <tr className="border-b border-zinc-100 bg-blue-50">
                               <td colSpan={6} className="px-6 py-3">
                                 <div className="flex items-center gap-3 flex-wrap">
-                                  <span className="text-xs font-medium text-zinc-700">Adjusted cost ($):</span>
+                                  <span className="text-xs font-medium text-zinc-700">Adjusted parts cost ($):</span>
                                   <input
                                     type="number"
                                     min="0"
                                     value={adjustCost}
                                     onChange={e => setAdjustCost(e.target.value)}
-                                    className="text-xs border border-zinc-300 rounded px-2 py-1 w-28 bg-white"
+                                    className="text-xs text-zinc-900 border border-zinc-300 rounded px-2 py-1 w-28 bg-white"
                                   />
                                   <button
                                     onClick={() => {
@@ -759,11 +920,21 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                   </tbody>
                 </table>
               </div>
-              {/* Total */}
+              {/* Totals */}
               <div className="px-6 py-4 border-t border-zinc-100 flex justify-end">
-                <div className="flex items-center gap-4">
-                  <span className="text-sm font-medium text-zinc-500">Total Estimate</span>
-                  <span className="text-xl font-bold text-zinc-900 font-mono">{fmt(total)}</span>
+                <div className="space-y-1.5 text-sm min-w-[220px]">
+                  <div className="flex justify-between gap-10">
+                    <span className="text-zinc-500">Parts Subtotal</span>
+                    <span className="font-mono text-zinc-700">{fmt(partsTotal)}</span>
+                  </div>
+                  <div className="flex justify-between gap-10">
+                    <span className="text-zinc-500">Labour Subtotal</span>
+                    <span className="font-mono text-zinc-700">{fmt(labourTotal)}</span>
+                  </div>
+                  <div className="flex justify-between gap-10 pt-2 border-t border-zinc-200">
+                    <span className="font-semibold text-zinc-900">Grand Total</span>
+                    <span className="text-xl font-bold text-zinc-900 font-mono">{fmt(total)}</span>
+                  </div>
                 </div>
               </div>
             </section>
@@ -823,37 +994,63 @@ function ClaimDetail({ seed }: { seed: Claim }) {
               </div>
             ) : (
               <>
-                <ClaimSummaryCard />
-
                 {/* Damage assessment summary */}
-                <section className="bg-white border border-zinc-200 rounded-lg p-6">
-                  <h2 className="text-sm font-semibold text-zinc-900 mb-4">Damage Assessment</h2>
+                <section className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+                  <div className="px-6 py-4 border-b border-zinc-100">
+                    <h2 className="text-sm font-semibold text-zinc-900">Damage Assessment</h2>
+                  </div>
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-zinc-100 text-left">
-                        <th className="py-2 pr-6 text-xs font-medium text-zinc-500">Part</th>
-                        <th className="py-2 pr-4 text-xs font-medium text-zinc-500">Severity</th>
-                        <th className="py-2 pr-4 text-xs font-medium text-zinc-500">Confidence</th>
-                        <th className="py-2 text-xs font-medium text-zinc-500">Status</th>
+                      <tr className="border-b border-zinc-100 bg-zinc-50 text-left">
+                        <th className="px-6 py-2.5 text-xs font-medium text-zinc-500">Part</th>
+                        <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Severity</th>
+                        <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Confidence</th>
+                        <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Status</th>
+                        <th className="px-3 py-2.5 w-8"></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {claim.damageLabels.map(label => (
-                        <tr key={label.id} className="border-b border-zinc-100">
-                          <td className="py-2.5 pr-6 font-medium text-zinc-900">{label.part}</td>
-                          <td className="py-2.5 pr-4">
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${SEVERITY_BADGE[label.severity]}`}>
-                              {label.severity}
-                            </span>
-                          </td>
-                          <td className="py-2.5 pr-4 text-zinc-600">{label.confidence}%</td>
-                          <td className="py-2.5">
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${LABEL_STATUS_BADGE[label.status]}`}>
-                              {label.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {claim.damageLabels.map(label => {
+                        const traceOpen = expandedTraces.has(label.id);
+                        return (
+                          <Fragment key={label.id}>
+                            <tr className="border-b border-zinc-100">
+                              <td className="px-6 py-3 font-medium text-zinc-900">{label.part}</td>
+                              <td className="px-3 py-3">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${SEVERITY_BADGE[label.severity]}`}>
+                                  {label.severity}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 text-zinc-600">{label.confidence}%</td>
+                              <td className="px-3 py-3">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${LABEL_STATUS_BADGE[label.status]}`}>
+                                  {label.status}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 text-center">
+                                <button
+                                  onClick={() => toggleTrace(label.id)}
+                                  className={`text-zinc-400 hover:text-zinc-700 text-sm inline-block transition-transform duration-150 ${traceOpen ? 'rotate-180' : ''}`}
+                                  title="View trace"
+                                >
+                                  ▾
+                                </button>
+                              </td>
+                            </tr>
+                            {traceOpen && (
+                              <tr className="border-b border-zinc-100 bg-zinc-50">
+                                <td colSpan={5} className="px-6 py-3">
+                                  <div className="text-xs text-zinc-600 space-y-1">
+                                    <p><span className="font-medium text-zinc-700">Bounding Box ID:</span> {label.traceData.boundingBoxId}</p>
+                                    <p><span className="font-medium text-zinc-700">Model:</span> {label.traceData.model}</p>
+                                    <p><span className="font-medium text-zinc-700">Dataset:</span> {label.traceData.dataset}</p>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </section>
@@ -867,30 +1064,93 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                     <thead>
                       <tr className="border-b border-zinc-100 text-left bg-zinc-50">
                         <th className="px-6 py-2.5 text-xs font-medium text-zinc-500">Part</th>
-                        <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Description</th>
+                        <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Description / Rate</th>
                         <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Cost</th>
+                        <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Source</th>
                         <th className="px-3 py-2.5 text-xs font-medium text-zinc-500">Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {claim.costLineItems.map(item => (
-                        <tr key={item.id} className="border-b border-zinc-100">
-                          <td className="px-6 py-3 font-medium text-zinc-900">{item.part}</td>
-                          <td className="px-3 py-3 text-zinc-600">{item.description}</td>
-                          <td className="px-3 py-3 font-mono text-zinc-900 whitespace-nowrap">{fmt(item.cost)}</td>
-                          <td className="px-3 py-3">
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${COST_STATUS_BADGE[item.status]}`}>
-                              {item.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {claim.costLineItems.map(item => {
+                        const partsOpen = expandedSources.has(item.id);
+                        const labourOpen = expandedLabourSources.has(item.id);
+                        const labourCost = item.labourHours * item.labourRate;
+                        return (
+                          <Fragment key={item.id}>
+                            {/* Parts row */}
+                            <tr className="border-b border-zinc-100">
+                              <td className="px-6 pt-3 pb-1 font-medium text-zinc-900 align-top" rowSpan={2}>{item.part}</td>
+                              <td className="px-3 pt-3 pb-1 text-zinc-600">
+                                <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide mb-0.5">Parts</div>
+                                {item.description}
+                              </td>
+                              <td className="px-3 pt-3 pb-1 font-mono text-zinc-900 whitespace-nowrap">{fmt(item.cost)}</td>
+                              <td className="px-3 pt-3 pb-1 whitespace-nowrap">
+                                <button
+                                  onClick={() => toggleSource(item.id)}
+                                  className="text-xs bg-zinc-100 text-zinc-600 rounded px-2 py-0.5 hover:bg-zinc-200 inline-flex items-center gap-1"
+                                >
+                                  {item.source}
+                                  <span className={`inline-block transition-transform duration-150 ${partsOpen ? 'rotate-180' : ''}`}>▾</span>
+                                </button>
+                              </td>
+                              <td className="px-3 pt-3 pb-1">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${COST_STATUS_BADGE[item.status]}`}>
+                                  {item.status}
+                                </span>
+                              </td>
+                            </tr>
+                            {/* Labour row */}
+                            <tr className="border-b border-zinc-100">
+                              <td className="px-3 pb-3 pt-1 text-zinc-600">
+                                <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wide mb-0.5">Labour</div>
+                                {item.labourHours} hrs @ {fmt(item.labourRate)}/hr
+                              </td>
+                              <td className="px-3 pb-3 pt-1 font-mono text-zinc-700 whitespace-nowrap">{fmt(labourCost)}</td>
+                              <td className="px-3 pb-3 pt-1 whitespace-nowrap">
+                                <button
+                                  onClick={() => toggleLabourSource(item.id)}
+                                  className="text-xs bg-zinc-100 text-zinc-600 rounded px-2 py-0.5 hover:bg-zinc-200 inline-flex items-center gap-1"
+                                >
+                                  {item.labourSource}
+                                  <span className={`inline-block transition-transform duration-150 ${labourOpen ? 'rotate-180' : ''}`}>▾</span>
+                                </button>
+                              </td>
+                              <td className="px-3 pb-3 pt-1"><span className="text-xs text-zinc-400">—</span></td>
+                            </tr>
+                            {partsOpen && (
+                              <tr className="border-b border-zinc-100 bg-zinc-50">
+                                <td colSpan={5} className="px-6 py-2.5">
+                                  <p className="text-xs text-zinc-600">{item.sourceDetail}</p>
+                                </td>
+                              </tr>
+                            )}
+                            {labourOpen && (
+                              <tr className="border-b border-zinc-100 bg-zinc-50">
+                                <td colSpan={5} className="px-6 py-2.5">
+                                  <p className="text-xs text-zinc-600">{item.labourSourceDetail}</p>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                   <div className="px-6 py-4 border-t border-zinc-100 flex justify-end">
-                    <div className="flex items-center gap-4">
-                      <span className="text-sm font-medium text-zinc-500">Total Estimate</span>
-                      <span className="text-xl font-bold text-zinc-900 font-mono">{fmt(total)}</span>
+                    <div className="space-y-1.5 text-sm min-w-[220px]">
+                      <div className="flex justify-between gap-10">
+                        <span className="text-zinc-500">Parts Subtotal</span>
+                        <span className="font-mono text-zinc-700">{fmt(partsTotal)}</span>
+                      </div>
+                      <div className="flex justify-between gap-10">
+                        <span className="text-zinc-500">Labour Subtotal</span>
+                        <span className="font-mono text-zinc-700">{fmt(labourTotal)}</span>
+                      </div>
+                      <div className="flex justify-between gap-10 pt-2 border-t border-zinc-200">
+                        <span className="font-semibold text-zinc-900">Grand Total</span>
+                        <span className="text-xl font-bold text-zinc-900 font-mono">{fmt(total)}</span>
+                      </div>
                     </div>
                   </div>
                 </section>
@@ -917,7 +1177,68 @@ function ClaimDetail({ seed }: { seed: Claim }) {
             )}
           </div>
         )}
+        {/* ── VIEW 5: APPROVED ────────────────────────────────────────────────── */}
+        {!loading && claim.state === 'APPROVED' && (
+          <div className="space-y-5">
+            {/* Success banner */}
+            <div className="bg-green-50 border border-green-200 rounded-lg px-6 py-4 flex items-center gap-3">
+              <span className="text-green-600 text-lg font-bold">✓</span>
+              <p className="text-sm font-semibold text-green-900">Estimate approved by Senior Adjuster</p>
+            </div>
+
+            {/* Draft customer communication */}
+            <section className="bg-white border border-zinc-200 rounded-lg p-6">
+              <h2 className="text-sm font-semibold text-zinc-900 mb-3">Draft Customer Communication</h2>
+              <textarea
+                readOnly
+                rows={5}
+                value={`Dear ${claim.policyHolder}, your claim ${claim.id} has been approved. The total repair estimate is ${fmt(total)}. Please proceed to one of our authorised repair shops listed below.`}
+                className="w-full border border-zinc-200 rounded-md px-3 py-2.5 text-sm text-zinc-700 bg-zinc-50 resize-none focus:outline-none"
+              />
+            </section>
+
+            {/* Authorised Repair Shops */}
+            <section className="bg-white border border-zinc-200 rounded-lg p-6">
+              <h2 className="text-sm font-semibold text-zinc-900 mb-4">Authorised Repair Shops</h2>
+              <div className="divide-y divide-zinc-100">
+                {[
+                  { name: 'AutoFix Pro', address: '123 Main St, Springfield, IL 62701', phone: '(555) 123-4567' },
+                  { name: 'City Body Works', address: '456 Oak Ave, Downtown, IL 60601', phone: '(555) 234-5678' },
+                  { name: 'Premier Auto Repair', address: '789 Park Blvd, Westside, IL 60612', phone: '(555) 345-6789' },
+                ].map(shop => (
+                  <div key={shop.name} className="py-3 first:pt-0 last:pb-0 flex flex-col gap-0.5">
+                    <span className="text-sm font-medium text-zinc-900">{shop.name}</span>
+                    <span className="text-xs text-zinc-500">{shop.address}</span>
+                    <span className="text-xs text-zinc-500">{shop.phone}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Send CTA */}
+            <div className="flex justify-end">
+              <button
+                onClick={sendCommunication}
+                disabled={commSent}
+                className={`font-medium text-sm px-6 py-2.5 rounded transition-colors ${
+                  commSent
+                    ? 'bg-green-100 text-green-700 cursor-default'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {commSent ? 'Communication Sent ✓' : 'Send Communication to Customer'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Toast */}
+      {showToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-green-600 text-white text-sm font-medium px-5 py-3 rounded-lg shadow-lg">
+          Communication sent to customer successfully.
+        </div>
+      )}
     </div>
   );
 }

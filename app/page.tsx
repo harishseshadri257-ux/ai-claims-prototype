@@ -71,6 +71,7 @@ export default function ClaimsQueuePage() {
       incidentType: form.incidentType,
       liableParty: form.liableParty,
       policeReport: form.policeReport,
+      driverLicenseVerified: false,
       state: 'NEW',
       imageUrl: '/images/car-damage.jpg',
       damageLabels: [],
@@ -112,6 +113,7 @@ export default function ClaimsQueuePage() {
                 <th className="px-4 py-3 text-left font-medium text-zinc-500">Coverage Type</th>
                 <th className="px-4 py-3 text-right font-medium text-zinc-500">Total Estimate</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-500">Submitted</th>
+                <th className="px-4 py-3 text-left font-medium text-zinc-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
@@ -133,6 +135,16 @@ export default function ClaimsQueuePage() {
                     {claim.state === 'NEW' ? '—' : formatCurrency(claim.totalEstimate)}
                   </td>
                   <td className="px-4 py-3 text-zinc-500">{formatDate(claim.submittedAt)}</td>
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    {claim.state === 'PENDING_APPROVAL' && (
+                      <button
+                        onClick={() => router.push(`/adjuster/${claim.id}`)}
+                        className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition-colors whitespace-nowrap"
+                      >
+                        Review as Adjuster
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

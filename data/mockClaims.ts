@@ -14,6 +14,7 @@ export type DamageLabel = {
   status: 'PENDING' | 'APPROVED' | 'ADJUSTED' | 'OVERRIDDEN';
   boundingBox: { x: number; y: number; width: number; height: number };
   traceData: { boundingBoxId: string; model: string; dataset: string };
+  agentNotes?: string;
 };
 
 export type CostLineItem = {
@@ -23,6 +24,10 @@ export type CostLineItem = {
   cost: number;
   source: string;
   sourceDetail: string;
+  labourHours: number;
+  labourRate: number;
+  labourSource: string;
+  labourSourceDetail: string;
   status: 'PENDING' | 'APPROVED' | 'ADJUSTED';
 };
 
@@ -36,6 +41,7 @@ export type Claim = {
   incidentType: 'Single Vehicle' | 'Two Party';
   liableParty: 'Policyholder' | 'Third Party' | 'Disputed';
   policeReport: boolean;
+  driverLicenseVerified: boolean;
   state: ClaimState;
   imageUrl: string;
   damageLabels: DamageLabel[];
@@ -78,6 +84,7 @@ function makeDamageLabels(status: DamageLabel['status']): DamageLabel[] {
   ];
 }
 
+// Parts total: $2,470 | Labour total: $617.50 | Grand total: $3,087.50
 function makeCostLineItems(status: CostLineItem['status']): CostLineItem[] {
   return [
     {
@@ -87,6 +94,10 @@ function makeCostLineItems(status: CostLineItem['status']): CostLineItem[] {
       cost: 1200,
       source: 'Repair Cost DB',
       sourceDetail: 'Mitchell RepairDB v4.2 — Part #VW-FLF-2019',
+      labourHours: 3.5,
+      labourRate: 95,
+      labourSource: 'Labour Rate DB',
+      labourSourceDetail: 'Standard Labour Rate DB v2.1 — Body Panel Replacement, Zone 2',
       status,
     },
     {
@@ -96,6 +107,10 @@ function makeCostLineItems(status: CostLineItem['status']): CostLineItem[] {
       cost: 420,
       source: 'Repair Cost DB',
       sourceDetail: 'Mitchell RepairDB v4.2 — Part #VW-LHL-2019',
+      labourHours: 1.0,
+      labourRate: 95,
+      labourSource: 'Labour Rate DB',
+      labourSourceDetail: 'Standard Labour Rate DB v2.1 — Headlight Assembly Replacement',
       status,
     },
     {
@@ -105,6 +120,10 @@ function makeCostLineItems(status: CostLineItem['status']): CostLineItem[] {
       cost: 850,
       source: 'Historical Claim #4821',
       sourceDetail: 'Claim #4821 — VW Tiguan 2019, settled 2024-11-12, amount $880',
+      labourHours: 2.0,
+      labourRate: 95,
+      labourSource: 'Labour Rate DB',
+      labourSourceDetail: 'Standard Labour Rate DB v2.1 — Bumper Repair and Repaint',
       status,
     },
   ];
@@ -121,11 +140,12 @@ export const mockClaims: Claim[] = [
     incidentType: 'Two Party',
     liableParty: 'Third Party',
     policeReport: true,
+    driverLicenseVerified: true,
     state: 'ASSESSING',
     imageUrl: '/images/car-damage.jpg',
     damageLabels: makeDamageLabels('PENDING'),
     costLineItems: makeCostLineItems('PENDING'),
-    totalEstimate: 2470,
+    totalEstimate: 3087.50,
     totalLoss: false,
     submittedAt: '2025-05-18T09:15:00Z',
     adjusterNotes: '',
@@ -140,11 +160,12 @@ export const mockClaims: Claim[] = [
     incidentType: 'Single Vehicle',
     liableParty: 'Policyholder',
     policeReport: false,
+    driverLicenseVerified: true,
     state: 'NEW',
     imageUrl: '/images/car-damage.jpg',
     damageLabels: makeDamageLabels('PENDING'),
     costLineItems: makeCostLineItems('PENDING'),
-    totalEstimate: 2470,
+    totalEstimate: 3087.50,
     totalLoss: false,
     submittedAt: '2025-05-17T14:30:00Z',
     adjusterNotes: '',
@@ -159,13 +180,34 @@ export const mockClaims: Claim[] = [
     incidentType: 'Two Party',
     liableParty: 'Disputed',
     policeReport: true,
+    driverLicenseVerified: true,
     state: 'PENDING_APPROVAL',
     imageUrl: '/images/car-damage.jpg',
     damageLabels: makeDamageLabels('APPROVED'),
     costLineItems: makeCostLineItems('APPROVED'),
-    totalEstimate: 2470,
+    totalEstimate: 3087.50,
     totalLoss: false,
     submittedAt: '2025-05-15T11:45:00Z',
+    adjusterNotes: '',
+  },
+  {
+    id: 'CLM-2025-004',
+    policyHolder: 'Priya Nair',
+    policyNumber: 'POL-774510',
+    policyStatus: 'ACTIVE',
+    coverageType: 'Comprehensive',
+    incidentDate: '2025-05-12',
+    incidentType: 'Two Party',
+    liableParty: 'Third Party',
+    policeReport: true,
+    driverLicenseVerified: true,
+    state: 'APPROVED',
+    imageUrl: '/images/car-damage.jpg',
+    damageLabels: makeDamageLabels('APPROVED'),
+    costLineItems: makeCostLineItems('APPROVED'),
+    totalEstimate: 3087.50,
+    totalLoss: false,
+    submittedAt: '2025-05-12T08:20:00Z',
     adjusterNotes: '',
   },
 ];
