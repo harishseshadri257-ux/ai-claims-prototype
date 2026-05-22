@@ -81,7 +81,7 @@ On rejection: a summary card showing the rejection reason and notes, with a link
 
 **Cost Estimator.** In production this would be a fine-tuned LLM with RAG over a repair cost database and historical claims data. In the prototype, itemised cost estimates with parts, labour, and source attribution are hardcoded in `data/mockClaims.ts`. Source detail text simulates RAG retrieval from Mitchell RepairDB v4.2 and historical claim records.
 
-**Human-in-the-loop.** All approve, adjust, and override interactions are fully functional and update local React state. In production these interactions would be captured by a feedback layer (e.g. Scale AI Dialect) and structured as labelled retraining signals for model improvement.
+**Human-in-the-loop.** All approve, adjust, and override interactions are fully functional and update local React state. In production these interactions would be captured by a feedback layer (e.g. Scale AI Dialect) and structured as labelled retraining signals for model improvement. Claims agents can also manually add missed damage labels and cost line items. Agent-added items are visually distinct from AI-generated outputs and counted separately in the audit trail.
 
 ---
 

@@ -109,6 +109,8 @@ Customer Communication (AI-drafted)
 | Adjust | Modifies at line-item level with required notes | Correction delta logged with notes as context |
 | Override | Rejects AI output entirely with required reason | Strong retraining signal |
 
+Claims agent manually adds a damage label or cost item the AI missed. Logged as a gap signal — informs future model training on missed damage patterns.
+
 Notes fields on Adjust and Override are required, not optional. They provide structured natural-language context that makes the feedback signal interpretable for retraining, rather than a bare label flip.
 
 **Confidence threshold enforcement**
