@@ -100,6 +100,21 @@ function ClaimDetail({ seed }: { seed: Claim }) {
   const [costAdjustId, setCostAdjustId] = useState<string | null>(null);
   const [adjustCost, setAdjustCost] = useState('');
 
+  // Add missed damage form
+  const [showAddDamageForm, setShowAddDamageForm] = useState(false);
+  const [newDamagePart, setNewDamagePart] = useState('');
+  const [newDamageSeverity, setNewDamageSeverity] = useState<DamageLabel['severity']>('Moderate');
+  const [newDamageNotes, setNewDamageNotes] = useState('');
+
+  // Add missed cost item form
+  const [showAddCostForm, setShowAddCostForm] = useState(false);
+  const [newCostPart, setNewCostPart] = useState('');
+  const [newCostDescription, setNewCostDescription] = useState('');
+  const [newCostPartsCost, setNewCostPartsCost] = useState('');
+  const [newCostLabourHours, setNewCostLabourHours] = useState('');
+  const [newCostLabourRate, setNewCostLabourRate] = useState('95');
+  const [newCostNotes, setNewCostNotes] = useState('');
+
   const [submitted, setSubmitted] = useState(false);
   const [commSent, setCommSent] = useState(false);
   const [showToast, setShowToast] = useState(false);
@@ -162,6 +177,53 @@ function ClaimDetail({ seed }: { seed: Claim }) {
     setLabelActionType(null);
     setActionNotes('');
   };
+
+  function addDamageLabel() {
+    const newLabel: DamageLabel = {
+      id: `agent-${Date.now()}`,
+      part: newDamagePart.trim(),
+      severity: newDamageSeverity,
+      confidence: 100,
+      status: 'APPROVED',
+      boundingBox: { x: 0, y: 0, width: 0, height: 0 },
+      traceData: { boundingBoxId: 'N/A', model: 'N/A', dataset: 'N/A' },
+      agentNotes: newDamageNotes.trim(),
+      agentAdded: true,
+    };
+    setClaim(p => ({ ...p, damageLabels: [...p.damageLabels, newLabel] }));
+    setNewDamagePart('');
+    setNewDamageSeverity('Moderate');
+    setNewDamageNotes('');
+    setShowAddDamageForm(false);
+  }
+
+  function addCostLineItem() {
+    const partsCost = parseFloat(newCostPartsCost) || 0;
+    const labourHours = parseFloat(newCostLabourHours) || 0;
+    const labourRate = parseFloat(newCostLabourRate) || 95;
+    const newItem: CostLineItem = {
+      id: `agent-cost-${Date.now()}`,
+      part: newCostPart.trim(),
+      description: newCostDescription.trim(),
+      cost: partsCost,
+      source: 'Agent Assessment',
+      sourceDetail: newCostNotes.trim(),
+      labourHours,
+      labourRate,
+      labourSource: 'Agent Assessment',
+      labourSourceDetail: newCostNotes.trim(),
+      status: 'APPROVED',
+      agentAdded: true,
+    };
+    setClaim(p => ({ ...p, costLineItems: [...p.costLineItems, newItem] }));
+    setNewCostPart('');
+    setNewCostDescription('');
+    setNewCostPartsCost('');
+    setNewCostLabourHours('');
+    setNewCostLabourRate('95');
+    setNewCostNotes('');
+    setShowAddCostForm(false);
+  }
 
   const allLabelsResolved = claim.damageLabels.every(l => l.status !== 'PENDING');
   const resolvedLabels = claim.damageLabels.filter(l => l.status !== 'PENDING').length;
@@ -376,7 +438,7 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                   alt="Vehicle damage"
                   className="w-full block rounded"
                 />
-                {claim.damageLabels.map(label => {
+                {claim.damageLabels.filter(l => !l.agentAdded).map(label => {
                   const selected = selectedLabelId === label.id;
                   return (
                     <div
@@ -429,7 +491,7 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                       const isSelected = selectedLabelId === label.id;
                       const traceOpen = expandedTraces.has(label.id);
                       const isActing = labelActionId === label.id;
-                      const lowConf = label.confidence < 80;
+                      const lowConf = !label.agentAdded && label.confidence < 80;
 
                       return (
                         <Fragment key={label.id}>
@@ -445,13 +507,17 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                               </span>
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap">
-                              <span className={`flex items-center gap-1 text-sm ${lowConf ? 'text-yellow-700' : 'text-zinc-700'}`}>
-                                {lowConf && <span title="Below 80% confidence threshold">⚠</span>}
-                                {label.confidence}%
-                              </span>
+                              {label.agentAdded ? (
+                                <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">Agent Added</span>
+                              ) : (
+                                <span className={`flex items-center gap-1 text-sm ${lowConf ? 'text-yellow-700' : 'text-zinc-700'}`}>
+                                  {lowConf && <span title="Below 80% confidence threshold">⚠</span>}
+                                  {label.confidence}%
+                                </span>
+                              )}
                             </td>
                             <td className="px-3 py-3 font-mono text-xs text-zinc-500 whitespace-nowrap">
-                              {label.traceData.boundingBoxId}
+                              {label.agentAdded ? '—' : label.traceData.boundingBoxId}
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap">
                               <span className={`px-2 py-0.5 rounded text-xs font-medium ${LABEL_STATUS_BADGE[label.status]}`}>
@@ -523,23 +589,35 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                             <tr className="border-b border-zinc-100 bg-zinc-50">
                               <td colSpan={7} className="px-6 py-3">
                                 <div className="text-xs text-zinc-600 space-y-1">
-                                  <p>
-                                    <span className="font-medium text-zinc-700">Bounding Box ID:</span>{' '}
-                                    {label.traceData.boundingBoxId}
-                                  </p>
-                                  <p>
-                                    <span className="font-medium text-zinc-700">Model:</span>{' '}
-                                    {label.traceData.model}
-                                  </p>
-                                  <p>
-                                    <span className="font-medium text-zinc-700">Dataset:</span>{' '}
-                                    {label.traceData.dataset}
-                                  </p>
-                                  {label.agentNotes && (
-                                    <p>
-                                      <span className="font-medium text-zinc-700">Agent Notes:</span>{' '}
-                                      {label.agentNotes}
-                                    </p>
+                                  {label.agentAdded ? (
+                                    <>
+                                      <p><span className="font-medium text-zinc-700">Source:</span> Agent Assessment</p>
+                                      <p><span className="font-medium text-zinc-700">Added by:</span> Claims Agent</p>
+                                      {label.agentNotes && (
+                                        <p><span className="font-medium text-zinc-700">Agent Notes:</span> {label.agentNotes}</p>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <p>
+                                        <span className="font-medium text-zinc-700">Bounding Box ID:</span>{' '}
+                                        {label.traceData.boundingBoxId}
+                                      </p>
+                                      <p>
+                                        <span className="font-medium text-zinc-700">Model:</span>{' '}
+                                        {label.traceData.model}
+                                      </p>
+                                      <p>
+                                        <span className="font-medium text-zinc-700">Dataset:</span>{' '}
+                                        {label.traceData.dataset}
+                                      </p>
+                                      {label.agentNotes && (
+                                        <p>
+                                          <span className="font-medium text-zinc-700">Agent Notes:</span>{' '}
+                                          {label.agentNotes}
+                                        </p>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                               </td>
@@ -666,6 +744,73 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                   </tbody>
                 </table>
               </div>
+              <div className="px-6 py-4 border-t border-zinc-100">
+                {showAddDamageForm ? (
+                  <div className="space-y-3 max-w-lg">
+                    <p className="text-xs font-semibold text-zinc-700">Add Missed Damage</p>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-700 mb-1">
+                        Part Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newDamagePart}
+                        onChange={e => setNewDamagePart(e.target.value)}
+                        placeholder="e.g. Rear Quarter Panel"
+                        className="w-full text-xs text-zinc-900 border border-zinc-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-700 mb-1">
+                        Severity <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={newDamageSeverity}
+                        onChange={e => setNewDamageSeverity(e.target.value as DamageLabel['severity'])}
+                        className="text-xs text-zinc-900 border border-zinc-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      >
+                        <option>Minor</option>
+                        <option>Moderate</option>
+                        <option>Severe</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-700 mb-1">
+                        Agent Notes <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={newDamageNotes}
+                        onChange={e => setNewDamageNotes(e.target.value)}
+                        rows={2}
+                        placeholder="Describe the damage you are adding..."
+                        className="w-full text-xs text-zinc-900 border border-zinc-300 rounded px-2 py-1.5 bg-white resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={addDamageLabel}
+                        disabled={!newDamagePart.trim() || !newDamageNotes.trim()}
+                        className="text-xs bg-blue-600 text-white rounded px-3 py-1.5 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        onClick={() => { setShowAddDamageForm(false); setNewDamagePart(''); setNewDamageSeverity('Moderate'); setNewDamageNotes(''); }}
+                        className="text-xs text-zinc-500 hover:text-zinc-800"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowAddDamageForm(true)}
+                    className="text-xs text-blue-600 border border-blue-300 rounded px-3 py-1.5 hover:bg-blue-50 inline-flex items-center gap-1"
+                  >
+                    <span className="text-base leading-none">+</span> Add Missed Damage
+                  </button>
+                )}
+              </div>
             </section>
 
             {/* Next action banner */}
@@ -725,7 +870,13 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                               {label.severity}
                             </span>
                           </td>
-                          <td className="px-3 py-3 text-zinc-600">{label.confidence}%</td>
+                          <td className="px-3 py-3">
+                            {label.agentAdded ? (
+                              <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">Agent Added</span>
+                            ) : (
+                              <span className="text-zinc-600">{label.confidence}%</span>
+                            )}
+                          </td>
                           <td className="px-3 py-3">
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${LABEL_STATUS_BADGE[label.status]}`}>
                               {label.status}
@@ -748,11 +899,23 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                           <tr className="border-b border-zinc-100 bg-zinc-50">
                             <td colSpan={6} className="px-6 py-3">
                               <div className="text-xs text-zinc-600 space-y-1">
-                                <p><span className="font-medium text-zinc-700">Bounding Box ID:</span> {label.traceData.boundingBoxId}</p>
-                                <p><span className="font-medium text-zinc-700">Model:</span> {label.traceData.model}</p>
-                                <p><span className="font-medium text-zinc-700">Dataset:</span> {label.traceData.dataset}</p>
-                                {label.agentNotes && (
-                                  <p><span className="font-medium text-zinc-700">Agent Notes:</span> {label.agentNotes}</p>
+                                {label.agentAdded ? (
+                                  <>
+                                    <p><span className="font-medium text-zinc-700">Source:</span> Agent Assessment</p>
+                                    <p><span className="font-medium text-zinc-700">Added by:</span> Claims Agent</p>
+                                    {label.agentNotes && (
+                                      <p><span className="font-medium text-zinc-700">Agent Notes:</span> {label.agentNotes}</p>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <p><span className="font-medium text-zinc-700">Bounding Box ID:</span> {label.traceData.boundingBoxId}</p>
+                                    <p><span className="font-medium text-zinc-700">Model:</span> {label.traceData.model}</p>
+                                    <p><span className="font-medium text-zinc-700">Dataset:</span> {label.traceData.dataset}</p>
+                                    {label.agentNotes && (
+                                      <p><span className="font-medium text-zinc-700">Agent Notes:</span> {label.agentNotes}</p>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             </td>
@@ -806,13 +969,23 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                             </td>
                             <td className="px-3 pt-3 pb-1 font-mono text-zinc-900 whitespace-nowrap">{fmt(item.cost)}</td>
                             <td className="px-3 pt-3 pb-1 whitespace-nowrap">
-                              <button
-                                onClick={() => toggleSource(item.id)}
-                                className="text-xs bg-zinc-100 text-zinc-600 rounded px-2 py-0.5 hover:bg-zinc-200 inline-flex items-center gap-1"
-                              >
-                                {item.source}
-                                <span className={`inline-block transition-transform duration-150 ${partsOpen ? 'rotate-180' : ''}`}>▾</span>
-                              </button>
+                              {item.agentAdded ? (
+                                <button
+                                  onClick={() => toggleSource(item.id)}
+                                  className="text-xs bg-blue-100 text-blue-700 rounded px-2 py-0.5 hover:bg-blue-200 inline-flex items-center gap-1 font-medium"
+                                >
+                                  Agent Added
+                                  <span className={`inline-block transition-transform duration-150 ${partsOpen ? 'rotate-180' : ''}`}>▾</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => toggleSource(item.id)}
+                                  className="text-xs bg-zinc-100 text-zinc-600 rounded px-2 py-0.5 hover:bg-zinc-200 inline-flex items-center gap-1"
+                                >
+                                  {item.source}
+                                  <span className={`inline-block transition-transform duration-150 ${partsOpen ? 'rotate-180' : ''}`}>▾</span>
+                                </button>
+                              )}
                             </td>
                             <td className="px-3 pt-3 pb-1 whitespace-nowrap">
                               <span className={`px-2 py-0.5 rounded text-xs font-medium ${COST_STATUS_BADGE[item.status]}`}>
@@ -849,13 +1022,23 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                             </td>
                             <td className="px-3 pb-3 pt-1 font-mono text-zinc-700 whitespace-nowrap">{fmt(labourCost)}</td>
                             <td className="px-3 pb-3 pt-1 whitespace-nowrap">
-                              <button
-                                onClick={() => toggleLabourSource(item.id)}
-                                className="text-xs bg-zinc-100 text-zinc-600 rounded px-2 py-0.5 hover:bg-zinc-200 inline-flex items-center gap-1"
-                              >
-                                {item.labourSource}
-                                <span className={`inline-block transition-transform duration-150 ${labourOpen ? 'rotate-180' : ''}`}>▾</span>
-                              </button>
+                              {item.agentAdded ? (
+                                <button
+                                  onClick={() => toggleLabourSource(item.id)}
+                                  className="text-xs bg-blue-100 text-blue-700 rounded px-2 py-0.5 hover:bg-blue-200 inline-flex items-center gap-1 font-medium"
+                                >
+                                  Agent Added
+                                  <span className={`inline-block transition-transform duration-150 ${labourOpen ? 'rotate-180' : ''}`}>▾</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => toggleLabourSource(item.id)}
+                                  className="text-xs bg-zinc-100 text-zinc-600 rounded px-2 py-0.5 hover:bg-zinc-200 inline-flex items-center gap-1"
+                                >
+                                  {item.labourSource}
+                                  <span className={`inline-block transition-transform duration-150 ${labourOpen ? 'rotate-180' : ''}`}>▾</span>
+                                </button>
+                              )}
                             </td>
                             <td className="px-3 pb-3 pt-1"><span className="text-xs text-zinc-400">—</span></td>
                             <td className="px-3 pb-3 pt-1"><span className="text-xs text-zinc-400">—</span></td>
@@ -865,7 +1048,14 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                           {partsOpen && (
                             <tr className="border-b border-zinc-100 bg-zinc-50">
                               <td colSpan={6} className="px-6 py-2.5">
-                                <p className="text-xs text-zinc-600">{item.sourceDetail}</p>
+                                {item.agentAdded ? (
+                                  <div className="text-xs text-zinc-600 space-y-1">
+                                    <p><span className="font-medium text-zinc-700">Source:</span> Agent Assessment</p>
+                                    {item.sourceDetail && <p><span className="font-medium text-zinc-700">Agent Notes:</span> {item.sourceDetail}</p>}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-zinc-600">{item.sourceDetail}</p>
+                                )}
                               </td>
                             </tr>
                           )}
@@ -874,7 +1064,14 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                           {labourOpen && (
                             <tr className="border-b border-zinc-100 bg-zinc-50">
                               <td colSpan={6} className="px-6 py-2.5">
-                                <p className="text-xs text-zinc-600">{item.labourSourceDetail}</p>
+                                {item.agentAdded ? (
+                                  <div className="text-xs text-zinc-600 space-y-1">
+                                    <p><span className="font-medium text-zinc-700">Source:</span> Agent Assessment</p>
+                                    {item.labourSourceDetail && <p><span className="font-medium text-zinc-700">Agent Notes:</span> {item.labourSourceDetail}</p>}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-zinc-600">{item.labourSourceDetail}</p>
+                                )}
                               </td>
                             </tr>
                           )}
@@ -919,6 +1116,111 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                     })}
                   </tbody>
                 </table>
+              </div>
+              {/* Add missed item */}
+              <div className="px-6 py-4 border-t border-zinc-100">
+                {showAddCostForm ? (
+                  <div className="space-y-3 max-w-lg">
+                    <p className="text-xs font-semibold text-zinc-700">Add Missed Item</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-700 mb-1">
+                          Part Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={newCostPart}
+                          onChange={e => setNewCostPart(e.target.value)}
+                          placeholder="e.g. Side Mirror"
+                          className="w-full text-xs text-zinc-900 border border-zinc-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-700 mb-1">
+                          Description <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={newCostDescription}
+                          onChange={e => setNewCostDescription(e.target.value)}
+                          placeholder="e.g. OEM replacement part"
+                          className="w-full text-xs text-zinc-900 border border-zinc-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-700 mb-1">
+                          Parts Cost ($) <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={newCostPartsCost}
+                          onChange={e => setNewCostPartsCost(e.target.value)}
+                          placeholder="0"
+                          className="w-full text-xs text-zinc-900 border border-zinc-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-700 mb-1">
+                          Labour Hours <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={newCostLabourHours}
+                          onChange={e => setNewCostLabourHours(e.target.value)}
+                          placeholder="0"
+                          className="w-full text-xs text-zinc-900 border border-zinc-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-zinc-700 mb-1">Labour Rate ($/hr)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={newCostLabourRate}
+                          onChange={e => setNewCostLabourRate(e.target.value)}
+                          className="w-full text-xs text-zinc-900 border border-zinc-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-zinc-700 mb-1">
+                        Agent Notes <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={newCostNotes}
+                        onChange={e => setNewCostNotes(e.target.value)}
+                        rows={2}
+                        placeholder="Describe why you are adding this item..."
+                        className="w-full text-xs text-zinc-900 border border-zinc-300 rounded px-2 py-1.5 bg-white resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={addCostLineItem}
+                        disabled={!newCostPart.trim() || !newCostDescription.trim() || !newCostPartsCost || !newCostLabourHours || !newCostNotes.trim()}
+                        className="text-xs bg-blue-600 text-white rounded px-3 py-1.5 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        onClick={() => { setShowAddCostForm(false); setNewCostPart(''); setNewCostDescription(''); setNewCostPartsCost(''); setNewCostLabourHours(''); setNewCostLabourRate('95'); setNewCostNotes(''); }}
+                        className="text-xs text-zinc-500 hover:text-zinc-800"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowAddCostForm(true)}
+                    className="text-xs text-blue-600 border border-blue-300 rounded px-3 py-1.5 hover:bg-blue-50 inline-flex items-center gap-1"
+                  >
+                    <span className="text-base leading-none">+</span> Add Missed Item
+                  </button>
+                )}
               </div>
               {/* Totals */}
               <div className="px-6 py-4 border-t border-zinc-100 flex justify-end">
@@ -1021,7 +1323,13 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                                   {label.severity}
                                 </span>
                               </td>
-                              <td className="px-3 py-3 text-zinc-600">{label.confidence}%</td>
+                              <td className="px-3 py-3">
+                                {label.agentAdded ? (
+                                  <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">Agent Added</span>
+                                ) : (
+                                  <span className="text-zinc-600">{label.confidence}%</span>
+                                )}
+                              </td>
                               <td className="px-3 py-3">
                                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${LABEL_STATUS_BADGE[label.status]}`}>
                                   {label.status}
@@ -1041,9 +1349,21 @@ function ClaimDetail({ seed }: { seed: Claim }) {
                               <tr className="border-b border-zinc-100 bg-zinc-50">
                                 <td colSpan={5} className="px-6 py-3">
                                   <div className="text-xs text-zinc-600 space-y-1">
-                                    <p><span className="font-medium text-zinc-700">Bounding Box ID:</span> {label.traceData.boundingBoxId}</p>
-                                    <p><span className="font-medium text-zinc-700">Model:</span> {label.traceData.model}</p>
-                                    <p><span className="font-medium text-zinc-700">Dataset:</span> {label.traceData.dataset}</p>
+                                    {label.agentAdded ? (
+                                      <>
+                                        <p><span className="font-medium text-zinc-700">Source:</span> Agent Assessment</p>
+                                        <p><span className="font-medium text-zinc-700">Added by:</span> Claims Agent</p>
+                                        {label.agentNotes && (
+                                          <p><span className="font-medium text-zinc-700">Agent Notes:</span> {label.agentNotes}</p>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <>
+                                        <p><span className="font-medium text-zinc-700">Bounding Box ID:</span> {label.traceData.boundingBoxId}</p>
+                                        <p><span className="font-medium text-zinc-700">Model:</span> {label.traceData.model}</p>
+                                        <p><span className="font-medium text-zinc-700">Dataset:</span> {label.traceData.dataset}</p>
+                                      </>
+                                    )}
                                   </div>
                                 </td>
                               </tr>

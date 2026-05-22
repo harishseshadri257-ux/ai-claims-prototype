@@ -15,6 +15,7 @@ export type DamageLabel = {
   boundingBox: { x: number; y: number; width: number; height: number };
   traceData: { boundingBoxId: string; model: string; dataset: string };
   agentNotes?: string;
+  agentAdded?: boolean;
 };
 
 export type CostLineItem = {
@@ -29,6 +30,7 @@ export type CostLineItem = {
   labourSource: string;
   labourSourceDetail: string;
   status: 'PENDING' | 'APPROVED' | 'ADJUSTED';
+  agentAdded?: boolean;
 };
 
 export type Claim = {

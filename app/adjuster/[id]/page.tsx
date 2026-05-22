@@ -168,7 +168,13 @@ function AdjusterReview({ claim }: { claim: Claim }) {
                           {label.severity}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-zinc-600">{label.confidence}%</td>
+                      <td className="px-3 py-3">
+                        {label.agentAdded ? (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">Agent Added</span>
+                        ) : (
+                          <span className="text-zinc-600">{label.confidence}%</span>
+                        )}
+                      </td>
                       <td className="px-3 py-3">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${LABEL_STATUS_BADGE[label.status]}`}>
                           {label.status}
@@ -191,11 +197,23 @@ function AdjusterReview({ claim }: { claim: Claim }) {
                       <tr className="border-b border-zinc-100 bg-zinc-50">
                         <td colSpan={6} className="px-6 py-3">
                           <div className="text-xs text-zinc-600 space-y-1">
-                            <p><span className="font-medium text-zinc-700">Bounding Box ID:</span> {label.traceData.boundingBoxId}</p>
-                            <p><span className="font-medium text-zinc-700">Model:</span> {label.traceData.model}</p>
-                            <p><span className="font-medium text-zinc-700">Dataset:</span> {label.traceData.dataset}</p>
-                            {label.agentNotes && (
-                              <p><span className="font-medium text-zinc-700">Agent Notes:</span> {label.agentNotes}</p>
+                            {label.agentAdded ? (
+                              <>
+                                <p><span className="font-medium text-zinc-700">Source:</span> Agent Assessment</p>
+                                <p><span className="font-medium text-zinc-700">Added by:</span> Claims Agent</p>
+                                {label.agentNotes && (
+                                  <p><span className="font-medium text-zinc-700">Agent Notes:</span> {label.agentNotes}</p>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <p><span className="font-medium text-zinc-700">Bounding Box ID:</span> {label.traceData.boundingBoxId}</p>
+                                <p><span className="font-medium text-zinc-700">Model:</span> {label.traceData.model}</p>
+                                <p><span className="font-medium text-zinc-700">Dataset:</span> {label.traceData.dataset}</p>
+                                {label.agentNotes && (
+                                  <p><span className="font-medium text-zinc-700">Agent Notes:</span> {label.agentNotes}</p>
+                                )}
+                              </>
                             )}
                           </div>
                         </td>
@@ -239,13 +257,23 @@ function AdjusterReview({ claim }: { claim: Claim }) {
                       </td>
                       <td className="px-3 pt-3 pb-1 font-mono text-zinc-900 whitespace-nowrap">{fmt(item.cost)}</td>
                       <td className="px-3 pt-3 pb-1 whitespace-nowrap">
-                        <button
-                          onClick={() => toggleSource(item.id)}
-                          className="text-xs bg-zinc-100 text-zinc-600 rounded px-2 py-0.5 hover:bg-zinc-200 inline-flex items-center gap-1"
-                        >
-                          {item.source}
-                          <span className={`inline-block transition-transform duration-150 ${partsOpen ? 'rotate-180' : ''}`}>▾</span>
-                        </button>
+                        {item.agentAdded ? (
+                          <button
+                            onClick={() => toggleSource(item.id)}
+                            className="text-xs bg-blue-100 text-blue-700 rounded px-2 py-0.5 hover:bg-blue-200 inline-flex items-center gap-1 font-medium"
+                          >
+                            Agent Added
+                            <span className={`inline-block transition-transform duration-150 ${partsOpen ? 'rotate-180' : ''}`}>▾</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => toggleSource(item.id)}
+                            className="text-xs bg-zinc-100 text-zinc-600 rounded px-2 py-0.5 hover:bg-zinc-200 inline-flex items-center gap-1"
+                          >
+                            {item.source}
+                            <span className={`inline-block transition-transform duration-150 ${partsOpen ? 'rotate-180' : ''}`}>▾</span>
+                          </button>
+                        )}
                       </td>
                       <td className="px-3 pt-3 pb-1">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${COST_STATUS_BADGE[item.status]}`}>
@@ -261,27 +289,51 @@ function AdjusterReview({ claim }: { claim: Claim }) {
                       </td>
                       <td className="px-3 pb-3 pt-1 font-mono text-zinc-700 whitespace-nowrap">{fmt(labourCost)}</td>
                       <td className="px-3 pb-3 pt-1 whitespace-nowrap">
-                        <button
-                          onClick={() => toggleLabourSource(item.id)}
-                          className="text-xs bg-zinc-100 text-zinc-600 rounded px-2 py-0.5 hover:bg-zinc-200 inline-flex items-center gap-1"
-                        >
-                          {item.labourSource}
-                          <span className={`inline-block transition-transform duration-150 ${labourOpen ? 'rotate-180' : ''}`}>▾</span>
-                        </button>
+                        {item.agentAdded ? (
+                          <button
+                            onClick={() => toggleLabourSource(item.id)}
+                            className="text-xs bg-blue-100 text-blue-700 rounded px-2 py-0.5 hover:bg-blue-200 inline-flex items-center gap-1 font-medium"
+                          >
+                            Agent Added
+                            <span className={`inline-block transition-transform duration-150 ${labourOpen ? 'rotate-180' : ''}`}>▾</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => toggleLabourSource(item.id)}
+                            className="text-xs bg-zinc-100 text-zinc-600 rounded px-2 py-0.5 hover:bg-zinc-200 inline-flex items-center gap-1"
+                          >
+                            {item.labourSource}
+                            <span className={`inline-block transition-transform duration-150 ${labourOpen ? 'rotate-180' : ''}`}>▾</span>
+                          </button>
+                        )}
                       </td>
                       <td className="px-3 pb-3 pt-1"><span className="text-xs text-zinc-400">—</span></td>
                     </tr>
                     {partsOpen && (
                       <tr className="border-b border-zinc-100 bg-zinc-50">
                         <td colSpan={5} className="px-6 py-2.5">
-                          <p className="text-xs text-zinc-600">{item.sourceDetail}</p>
+                          {item.agentAdded ? (
+                            <div className="text-xs text-zinc-600 space-y-1">
+                              <p><span className="font-medium text-zinc-700">Source:</span> Agent Assessment</p>
+                              {item.sourceDetail && <p><span className="font-medium text-zinc-700">Agent Notes:</span> {item.sourceDetail}</p>}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-zinc-600">{item.sourceDetail}</p>
+                          )}
                         </td>
                       </tr>
                     )}
                     {labourOpen && (
                       <tr className="border-b border-zinc-100 bg-zinc-50">
                         <td colSpan={5} className="px-6 py-2.5">
-                          <p className="text-xs text-zinc-600">{item.labourSourceDetail}</p>
+                          {item.agentAdded ? (
+                            <div className="text-xs text-zinc-600 space-y-1">
+                              <p><span className="font-medium text-zinc-700">Source:</span> Agent Assessment</p>
+                              {item.labourSourceDetail && <p><span className="font-medium text-zinc-700">Agent Notes:</span> {item.labourSourceDetail}</p>}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-zinc-600">{item.labourSourceDetail}</p>
+                          )}
                         </td>
                       </tr>
                     )}
